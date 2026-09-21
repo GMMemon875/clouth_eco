@@ -1,0 +1,6 @@
+{
+  "name": "Pakistani Women's Clothing Storefront",
+  "description": "Production-ready Phase 1 Pakistani women's clothing e-commerce storefront with catalog, variant stock, COD checkout, and WhatsApp ordering.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
