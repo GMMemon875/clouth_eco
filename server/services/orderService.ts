@@ -4,10 +4,11 @@ import { CustomerModel } from '../models/Customer';
 import { getProductById, decrementVariantStock } from './productService';
 import { getStoreSettings } from './settingsService';
 import { generateOrderNumber } from '../utils/orderNumber';
-import { IOrder, IOrderItem, IShippingDetails, ICustomer } from '../types';
+import { sampleSeedOrders } from '../utils/seedOrders';
+import { IOrder, IOrderItem, IShippingDetails, ICustomer, OrderStatus } from '../types';
 
-// In-Memory store for development resilience
-const inMemoryOrders: IOrder[] = [];
+// In-Memory store initialized with realistic Pakistani clothing orders for rich store dashboard
+const inMemoryOrders: IOrder[] = JSON.parse(JSON.stringify(sampleSeedOrders));
 const inMemoryCustomers: ICustomer[] = [];
 
 export interface ICreateOrderItemInput {
@@ -295,3 +296,277 @@ export async function getOrderByNumber(orderNumber: string): Promise<IOrder | nu
   const found = inMemoryOrders.find((o) => o.orderNumber.toUpperCase() === cleanOrderNumber);
   return found ? JSON.parse(JSON.stringify(found)) : null;
 }
+
+// ----------------------------------------------------
+// Admin Operations
+// ----------------------------------------------------
+
+export async function getAllOrdersAdmin(filters?: {
+  status?: string;
+  search?: string;
+  limit?: number;
+}): Promise<IOrder[]> {
+  let orders: IOrder[] = [];
+
+  if (isMongoConnected()) {
+    try {
+      const query: any = {};
+      if (filters?.status && filters.status !== 'all') {
+        query.status = filters.status;
+      }
+      if (filters?.search) {
+        const reg = new RegExp(filters.search.trim(), 'i');
+        query.$or = [
+          { orderNumber: reg },
+          { 'shippingDetails.fullName': reg },
+          { 'shippingDetails.phone': reg },
+          { 'shippingDetails.city': reg },
+          { trackingCode: reg },
+        ];
+      }
+      const docs = await OrderModel.find(query).sort({ createdAt: -1 }).lean();
+      orders = docs as unknown as IOrder[];
+    } catch (err) {
+      console.warn('[AdminOrders] Mongo fetch error, using in-memory orders:', err);
+    }
+  }
+
+  if (orders.length === 0) {
+    orders = JSON.parse(JSON.stringify(inMemoryOrders));
+
+    if (filters?.status && filters.status !== 'all') {
+      orders = orders.filter((o) => o.status === filters.status);
+    }
+
+    if (filters?.search) {
+      const q = filters.search.trim().toLowerCase();
+      orders = orders.filter(
+        (o) =>
+          o.orderNumber.toLowerCase().includes(q) ||
+          o.shippingDetails.fullName.toLowerCase().includes(q) ||
+          o.shippingDetails.phone.includes(q) ||
+          o.shippingDetails.city.toLowerCase().includes(q) ||
+          (o.trackingCode && o.trackingCode.toLowerCase().includes(q))
+      );
+    }
+
+    // Sort newest first
+    orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  if (filters?.limit && filters.limit > 0) {
+    orders = orders.slice(0, filters.limit);
+  }
+
+  return orders;
+}
+
+export async function updateOrderStatusAdmin(
+  orderNumber: string,
+  newStatus: OrderStatus,
+  trackingCode?: string,
+  note?: string
+): Promise<IOrder> {
+  const cleanOrderNumber = orderNumber.trim().toUpperCase();
+
+  const historyEntry = {
+    status: newStatus,
+    timestamp: new Date(),
+    note: note || `Order status updated to "${newStatus}" by Store Admin.`,
+  };
+
+  if (isMongoConnected()) {
+    try {
+      const updateData: any = {
+        status: newStatus,
+        $push: { statusHistory: historyEntry },
+      };
+      if (trackingCode !== undefined) {
+        updateData.trackingCode = trackingCode ? trackingCode.trim() : null;
+      }
+
+      const doc = await OrderModel.findOneAndUpdate(
+        { orderNumber: cleanOrderNumber },
+        updateData,
+        { new: true }
+      ).lean();
+
+      if (doc) {
+        return doc as unknown as IOrder;
+      }
+    } catch (err) {
+      console.warn('[AdminOrders] Mongo update error, falling back to memory:', err);
+    }
+  }
+
+  const memoryIndex = inMemoryOrders.findIndex((o) => o.orderNumber.toUpperCase() === cleanOrderNumber);
+  if (memoryIndex === -1) {
+    throw new Error(`Order ${orderNumber} not found.`);
+  }
+
+  const existing = inMemoryOrders[memoryIndex];
+  existing.status = newStatus;
+  existing.updatedAt = new Date();
+  if (trackingCode !== undefined) {
+    existing.trackingCode = trackingCode ? trackingCode.trim() : null;
+  }
+  existing.statusHistory.push(historyEntry);
+
+  return existing;
+}
+
+export async function getAdminStats() {
+  const allOrders = await getAllOrdersAdmin();
+
+  let totalRevenue = 0;
+  let nonCancelledCount = 0;
+  let pendingOrders = 0;
+  let deliveredOrders = 0;
+  let cancelledOrders = 0;
+
+  const ordersByStatus: Record<string, number> = {
+    'Order Placed': 0,
+    Confirmed: 0,
+    Processing: 0,
+    Packed: 0,
+    Shipped: 0,
+    'Out for Delivery': 0,
+    Delivered: 0,
+    Cancelled: 0,
+    Returned: 0,
+  };
+
+  // Product sales map
+  const productSalesMap: Record<string, { name: string; units: number; revenue: number; image: string }> = {};
+
+  allOrders.forEach((o) => {
+    if (ordersByStatus[o.status] !== undefined) {
+      ordersByStatus[o.status]++;
+    } else {
+      ordersByStatus[o.status] = 1;
+    }
+
+    if (o.status !== 'Cancelled' && o.status !== 'Returned') {
+      totalRevenue += o.totalAmount;
+      nonCancelledCount++;
+    }
+
+    if (['Order Placed', 'Confirmed', 'Processing', 'Packed', 'Shipped', 'Out for Delivery'].includes(o.status)) {
+      pendingOrders++;
+    } else if (o.status === 'Delivered') {
+      deliveredOrders++;
+    } else if (o.status === 'Cancelled') {
+      cancelledOrders++;
+    }
+
+    // Tally items
+    if (o.status !== 'Cancelled') {
+      o.items.forEach((it) => {
+        if (!productSalesMap[it.productId]) {
+          productSalesMap[it.productId] = {
+            name: it.productName,
+            units: 0,
+            revenue: 0,
+            image: it.image,
+          };
+        }
+        productSalesMap[it.productId].units += it.quantity;
+        productSalesMap[it.productId].revenue += it.subtotal;
+      });
+    }
+  });
+
+  const averageOrderValue = nonCancelledCount > 0 ? Math.round(totalRevenue / nonCancelledCount) : 0;
+
+  // Generate last 7 days sales timeline
+  const daysTrend: Array<{ date: string; revenue: number; orders: number }> = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+
+    const dayOrders = allOrders.filter((o) => {
+      const t = new Date(o.createdAt).getTime();
+      return t >= dayStart && t < dayEnd && o.status !== 'Cancelled';
+    });
+
+    const dayRev = dayOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+
+    daysTrend.push({
+      date: dateStr,
+      revenue: dayRev,
+      orders: dayOrders.length,
+    });
+  }
+
+  // Top products
+  const topSellingProducts = Object.entries(productSalesMap)
+    .map(([productId, data]) => ({ productId, ...data }))
+    .sort((a, b) => b.units - a.units)
+    .slice(0, 5);
+
+  return {
+    totalRevenue,
+    totalOrders: allOrders.length,
+    pendingOrders,
+    deliveredOrders,
+    cancelledOrders,
+    averageOrderValue,
+    ordersByStatus,
+    salesTrend: daysTrend,
+    topSellingProducts,
+    recentOrders: allOrders.slice(0, 8),
+  };
+}
+
+export async function getAdminCustomers(): Promise<any[]> {
+  const allOrders = await getAllOrdersAdmin();
+  const customerMap: Record<string, {
+    id: string;
+    fullName: string;
+    phone: string;
+    city: string;
+    address: string;
+    totalOrders: number;
+    totalSpent: number;
+    lastOrderDate: Date | string;
+    lastOrderNumber: string;
+    orders: Array<{ orderNumber: string; date: Date | string; total: number; status: string }>;
+  }> = {};
+
+  allOrders.forEach((o) => {
+    const phone = o.shippingDetails.phone.replace(/[^\d+]/g, '').trim();
+    if (!phone) return;
+
+    if (!customerMap[phone]) {
+      customerMap[phone] = {
+        id: `cust-${phone}`,
+        fullName: o.shippingDetails.fullName,
+        phone: o.shippingDetails.phone,
+        city: o.shippingDetails.city,
+        address: o.shippingDetails.address,
+        totalOrders: 0,
+        totalSpent: 0,
+        lastOrderDate: o.createdAt,
+        lastOrderNumber: o.orderNumber,
+        orders: [],
+      };
+    }
+
+    customerMap[phone].totalOrders += 1;
+    if (o.status !== 'Cancelled') {
+      customerMap[phone].totalSpent += o.totalAmount;
+    }
+    customerMap[phone].orders.push({
+      orderNumber: o.orderNumber,
+      date: o.createdAt,
+      total: o.totalAmount,
+      status: o.status,
+    });
+  });
+
+  return Object.values(customerMap).sort((a, b) => b.totalSpent - a.totalSpent);
+}
+

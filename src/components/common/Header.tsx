@@ -8,6 +8,7 @@ import {
   Compass,
   Sparkles,
   Phone,
+  LayoutDashboard,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -49,6 +50,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onSearc
     { label: 'Ready-to-Wear', path: '/shop?category=ready-to-wear' },
     { label: 'Unstitched', path: '/shop?category=unstitched' },
     { label: 'Track Order', path: '/track-order' },
+    { label: 'Dashboard', path: '/dashboard' },
   ];
 
   return (
@@ -134,6 +136,17 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onSearc
               <Phone className="w-3.5 h-3.5 text-emerald-600" />
               <span>WhatsApp</span>
             </a>
+
+            {/* Dashboard Quick Access Button */}
+            <button
+              id="header-dashboard-btn"
+              onClick={() => onNavigate('/dashboard')}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-stone-900 bg-amber-100/70 hover:bg-amber-100 border border-amber-300 transition"
+              title="Open Store Management Dashboard"
+            >
+              <LayoutDashboard className="w-3.5 h-3.5 text-[#8b3a42]" />
+              <span>Dashboard</span>
+            </button>
 
             {/* Wishlist */}
             <button

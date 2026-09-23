@@ -24,9 +24,32 @@ import { ReturnPolicyPage } from './pages/static/ReturnPolicyPage';
 import { ContactPage } from './pages/static/ContactPage';
 import { AboutPage } from './pages/static/AboutPage';
 import { PrivacyPolicyPage, TermsPage } from './pages/static/PrivacyPolicyPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { fetchCategories } from './api';
+import { ICategory } from './types/store';
+
+const defaultCategories = [
+  { slug: '3-piece-suits', name: '3-Piece Luxury Suits' },
+  { slug: '2-piece-suits', name: '2-Piece Everyday Suits' },
+  { slug: 'luxury-lawn', name: 'Luxury Swiss Lawn' },
+  { slug: 'ready-to-wear', name: 'Ready-to-Wear Pret' },
+  { slug: 'unstitched', name: 'Unstitched Fabrics' },
+  { slug: 'formals-festive', name: 'Festive & Chiffon Formals' },
+];
 
 export function AppContent() {
   const [currentUrl, setCurrentUrl] = useState(() => window.location.pathname + window.location.search);
+  const [categoriesList, setCategoriesList] = useState(defaultCategories);
+
+  useEffect(() => {
+    fetchCategories()
+      .then((cats) => {
+        if (cats && cats.length > 0) {
+          setCategoriesList(cats.map((c) => ({ slug: c.slug, name: c.name })));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -48,6 +71,16 @@ export function AppContent() {
   // Parse path and search params
   const [path, search] = currentUrl.split('?');
   const queryParams = new URLSearchParams(search || '');
+
+  // Dedicated full-screen Dashboard layout ("alag se")
+  if (path === '/dashboard' || path === '/admin' || path.startsWith('/dashboard') || path.startsWith('/admin')) {
+    return (
+      <DashboardPage
+        onNavigateStore={() => navigate('/')}
+        categories={categoriesList}
+      />
+    );
+  }
 
   let pageContent: React.ReactNode = null;
 

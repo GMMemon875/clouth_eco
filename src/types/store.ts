@@ -78,9 +78,23 @@ export interface ICartItem {
   maxStock: number;
 }
 
+export type OrderStatus =
+  | 'Order Placed'
+  | 'Confirmed'
+  | 'Processing'
+  | 'Packed'
+  | 'Shipped'
+  | 'Out for Delivery'
+  | 'Delivered'
+  | 'Cancelled'
+  | 'Returned';
+
 export interface IStoreSettings {
   key: string;
   brandName: string;
+  storeName?: string;
+  tagline?: string;
+  supportEmail?: string;
   whatsappNumber: string;
   contactEmail: string;
   delivery: {
@@ -88,9 +102,15 @@ export interface IStoreSettings {
     standardCharge: number;
     freeDeliveryThreshold: number;
     estimatedDays: string;
+    baseFee?: number;
+    freeShippingThreshold?: number;
   };
   codEnabled: boolean;
   announcementText: string;
+  announcement?: {
+    enabled: boolean;
+    text: string;
+  };
   socialLinks: {
     instagram: string;
     facebook: string;
@@ -111,6 +131,7 @@ export interface IShippingDetails {
 
 export interface IOrder {
   orderNumber: string;
+  customer?: string;
   shippingDetails: IShippingDetails;
   items: Array<{
     productId: string;
@@ -128,13 +149,16 @@ export interface IOrder {
   deliveryCharge: number;
   totalAmount: number;
   paymentMethod: 'COD';
-  status: string;
+  status: OrderStatus;
+  trackingCode?: string | null;
   statusHistory?: Array<{
     status: string;
-    timestamp: string;
+    timestamp: string | Date;
     note?: string;
   }>;
+  source?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface IOrderTrackingResult {

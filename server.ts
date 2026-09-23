@@ -8,6 +8,7 @@ import productRoutes from './server/routes/productRoutes';
 import categoryRoutes from './server/routes/categoryRoutes';
 import orderRoutes from './server/routes/orderRoutes';
 import settingsRoutes from './server/routes/settingsRoutes';
+import adminRoutes from './server/routes/adminRoutes';
 
 async function startServer() {
   const app = express();
@@ -31,6 +32,7 @@ async function startServer() {
   app.use('/api/categories', categoryRoutes);
   app.use('/api/orders', orderRoutes);
   app.use('/api/settings', settingsRoutes);
+  app.use('/api/admin', adminRoutes);
 
   // Vite middleware for development vs static build in production
   if (process.env.NODE_ENV !== 'production') {

@@ -28,3 +28,36 @@ export async function getStoreSettings(): Promise<IStoreSettings> {
 
   return currentSettings;
 }
+
+export async function updateStoreSettings(updates: Partial<IStoreSettings>): Promise<IStoreSettings> {
+  currentSettings = {
+    ...currentSettings,
+    ...updates,
+    delivery: {
+      ...currentSettings.delivery,
+      ...(updates.delivery || {}),
+    },
+    socialLinks: {
+      ...currentSettings.socialLinks,
+      ...(updates.socialLinks || {}),
+    },
+  };
+
+  if (isMongoConnected()) {
+    try {
+      const doc = await StoreSettingsModel.findOneAndUpdate(
+        { key: 'store_config' },
+        { ...currentSettings },
+        { new: true, upsert: true }
+      ).lean();
+      if (doc) {
+        return doc as unknown as IStoreSettings;
+      }
+    } catch (err) {
+      console.warn('[SettingsService] Mongo update failed:', err);
+    }
+  }
+
+  return currentSettings;
+}
+

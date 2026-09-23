@@ -294,3 +294,181 @@ export async function decrementVariantStock(productId: string, variantSku: strin
   variant.stock -= quantity;
   return true;
 }
+
+// ----------------------------------------------------
+// Admin Operations
+// ----------------------------------------------------
+
+export async function getAllProductsAdmin(): Promise<any[]> {
+  let products: IProduct[] = [];
+
+  if (isMongoConnected()) {
+    try {
+      const docs = await ProductModel.find().sort({ createdAt: -1 }).lean();
+      if (docs.length > 0) {
+        products = docs.map((d: any) => ({
+          ...d,
+          id: d._id?.toString() || d.id,
+        }));
+      }
+    } catch (err) {
+      console.warn('[AdminProducts] Mongo fetch error:', err);
+    }
+  }
+
+  if (products.length === 0) {
+    products = JSON.parse(JSON.stringify(inMemoryProducts));
+  }
+
+  return products.map((p) => {
+    const totalStock = (p.variants || []).reduce((sum, v) => sum + (v.stock || 0), 0);
+    const hasLowStock = (p.variants || []).some((v) => v.stock > 0 && v.stock <= 3);
+    const isOutOfStock = totalStock === 0;
+
+    return {
+      ...p,
+      totalStock,
+      hasLowStock,
+      isOutOfStock,
+    };
+  });
+}
+
+export async function createProductAdmin(data: Partial<IProduct>): Promise<IProduct> {
+  const cleanName = (data.name || 'New Eastern Collection').trim();
+  const slug = cleanName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') + '-' + Math.floor(1000 + Math.random() * 9000);
+
+  const skuPrefix = data.sku ? data.sku.trim().toUpperCase() : `LS-${Math.floor(100 + Math.random() * 900)}`;
+
+  const defaultVariants = data.variants && data.variants.length > 0 ? data.variants : [
+    { sku: `${skuPrefix}-S`, color: 'Default', colorCode: '#1c1917', size: 'S' as const, stock: 10 },
+    { sku: `${skuPrefix}-M`, color: 'Default', colorCode: '#1c1917', size: 'M' as const, stock: 15 },
+    { sku: `${skuPrefix}-L`, color: 'Default', colorCode: '#1c1917', size: 'L' as const, stock: 8 },
+  ];
+
+  const newProduct: IProduct = {
+    id: `prod-${Date.now()}`,
+    name: cleanName,
+    slug,
+    sku: skuPrefix,
+    description: data.description || 'Premium Pakistani designer collection crafted with breathable fabric.',
+    category: data.category || '3-piece-suits',
+    tags: Array.isArray(data.tags) ? data.tags : ['new arrival', 'lawn'],
+    basePrice: Number(data.basePrice) || 3950,
+    compareAtPrice: data.compareAtPrice ? Number(data.compareAtPrice) : null,
+    fabric: data.fabric || 'Luxury Swiss Lawn',
+    shirtDetails: data.shirtDetails || 'Printed / Embroidered Front & Back.',
+    trouserDetails: data.trouserDetails || 'Solid Dyed Cambric Trouser.',
+    dupattaDetails: data.dupattaDetails || 'Printed Voile / Chiffon Dupatta.',
+    images: data.images && data.images.length > 0 ? data.images : [
+      {
+        url: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80',
+        alt: cleanName,
+        isPrimary: true,
+      },
+    ],
+    variants: defaultVariants,
+    status: data.status || 'active',
+    featured: Boolean(data.featured),
+    newArrival: data.newArrival !== undefined ? Boolean(data.newArrival) : true,
+    bestSeller: Boolean(data.bestSeller),
+    sale: Boolean(data.sale),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  if (isMongoConnected()) {
+    try {
+      const created = await ProductModel.create(newProduct);
+      return {
+        ...(created.toObject() as any),
+        id: created._id.toString(),
+      };
+    } catch (err) {
+      console.warn('[AdminProduct] Mongo create failed, saving to memory:', err);
+    }
+  }
+
+  inMemoryProducts.unshift(newProduct);
+  return newProduct;
+}
+
+export async function updateProductAdmin(id: string, updates: Partial<IProduct>): Promise<IProduct> {
+  if (isMongoConnected()) {
+    try {
+      const doc = await ProductModel.findOneAndUpdate(
+        { $or: [{ _id: id }, { id: id }, { sku: id }] },
+        { ...updates, updatedAt: new Date() },
+        { new: true }
+      ).lean();
+
+      if (doc) {
+        return {
+          ...(doc as any),
+          id: (doc as any)._id?.toString() || (doc as any).id,
+        };
+      }
+    } catch (err) {
+      console.warn('[AdminProduct] Mongo update error:', err);
+    }
+  }
+
+  const idx = inMemoryProducts.findIndex((p) => p.id === id || p.sku === id || (p as any)._id === id);
+  if (idx === -1) {
+    throw new Error(`Product ${id} not found.`);
+  }
+
+  inMemoryProducts[idx] = {
+    ...inMemoryProducts[idx],
+    ...updates,
+    updatedAt: new Date(),
+  };
+
+  return inMemoryProducts[idx];
+}
+
+export async function updateVariantStockAdmin(
+  productId: string,
+  variantSku: string,
+  newStock: number
+): Promise<{ success: boolean; newStock: number }> {
+  const stockVal = Math.max(0, Number(newStock) || 0);
+
+  if (isMongoConnected()) {
+    try {
+      await ProductModel.updateOne(
+        {
+          $or: [{ _id: productId }, { id: productId }, { sku: productId }],
+          'variants.sku': variantSku,
+        },
+        {
+          $set: { 'variants.$.stock': stockVal, updatedAt: new Date() },
+        }
+      );
+      return { success: true, newStock: stockVal };
+    } catch (err) {
+      console.warn('[AdminProduct] Mongo stock update error:', err);
+    }
+  }
+
+  const product = inMemoryProducts.find(
+    (p) => p.id === productId || p.sku === productId || (p as any)._id === productId
+  );
+  if (!product) {
+    throw new Error(`Product ${productId} not found.`);
+  }
+
+  const variant = product.variants.find((v) => v.sku === variantSku);
+  if (!variant) {
+    throw new Error(`Variant ${variantSku} not found on product.`);
+  }
+
+  variant.stock = stockVal;
+  product.updatedAt = new Date();
+
+  return { success: true, newStock: stockVal };
+}
+
