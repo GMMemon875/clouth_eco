@@ -75,6 +75,8 @@ const OrderSchema = new Schema<IOrderDocument>(
       default: 'website',
     },
     trackingCode: { type: String, default: null },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', default: null, index: true },
+    userEmail: { type: String, default: null, lowercase: true, index: true },
   },
   {
     timestamps: true,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   Truck,
@@ -6,10 +6,12 @@ import {
   AlertCircle,
   CheckCircle2,
   Lock,
+  UserCheck,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useSettings } from '../context/SettingsContext';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import { submitCodOrder } from '../api';
 import { formatPKR } from '../utils/formatters';
 import { IShippingDetails } from '../types/store';
@@ -47,17 +49,33 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate, onOrderS
   const { cart, subtotal, deliveryCharge, totalAmount, clearCart, totalCartItems } = useCart();
   const { settings } = useSettings();
   const { showToast } = useToast();
+  const { user, isAuthenticated } = useAuth();
 
   const [formData, setFormData] = useState<IShippingDetails>({
-    fullName: '',
-    phone: '',
-    whatsapp: '',
-    city: 'Lahore',
-    area: '',
-    address: '',
-    landmark: '',
+    fullName: user?.name || '',
+    phone: user?.phone || '',
+    whatsapp: user?.phone || '',
+    city: user?.address?.city || 'Lahore',
+    area: user?.address?.area || '',
+    address: user?.address?.address || '',
+    landmark: user?.address?.landmark || '',
     notes: '',
   });
+
+  useEffect(() => {
+    if (user) {
+      setFormData((prev) => ({
+        ...prev,
+        fullName: prev.fullName || user.name || '',
+        phone: prev.phone || user.phone || '',
+        whatsapp: prev.whatsapp || user.phone || '',
+        city: user.address?.city || prev.city || 'Lahore',
+        area: user.address?.area || prev.area || '',
+        address: user.address?.address || prev.address || '',
+        landmark: user.address?.landmark || prev.landmark || '',
+      }));
+    }
+  }, [user]);
 
   const [whatsappSameAsPhone, setWhatsappSameAsPhone] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -170,10 +188,22 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate, onOrderS
           </h1>
           <div className="hidden sm:flex items-center gap-1 text-xs text-stone-500">
             <Lock className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Encrypted Guest Checkout</span>
+            <span>Encrypted COD Checkout</span>
           </div>
         </div>
       </div>
+
+      {isAuthenticated && user && (
+        <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-900">
+          <div className="flex items-center gap-2">
+            <UserCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+            <span>
+              Logged in as <strong>{user.name}</strong> ({user.email}). Shipping address pre-filled from your account.
+            </span>
+          </div>
+          <span className="text-[11px] text-emerald-700/80 hidden md:inline">You can adjust delivery address fields below if needed</span>
+        </div>
+      )}
 
       {errorMessage && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 text-xs text-red-900 animate-in fade-in">

@@ -1,5 +1,6 @@
 import React from 'react';
-import { ExternalLink, RefreshCw, ShoppingBag, ShieldCheck } from 'lucide-react';
+import { ExternalLink, RefreshCw, LogOut, ShieldCheck, User } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 interface AdminHeaderProps {
   onNavigateStore: () => void;
@@ -12,6 +13,13 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   onRefresh,
   isRefreshing = false,
 }) => {
+  const { user, logout } = useAuth();
+
+  const handleAdminLogout = async () => {
+    await logout();
+    onNavigateStore();
+  };
+
   return (
     <header id="admin-header" className="bg-stone-900 text-stone-100 border-b border-stone-800 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -26,8 +34,9 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                 <span className="font-serif font-bold tracking-wider text-base sm:text-lg text-white">
                   NOOR & CO.
                 </span>
-                <span className="text-[11px] font-medium tracking-wide bg-stone-800 text-amber-400 px-2 py-0.5 rounded border border-stone-700">
-                  Store Manager
+                <span className="text-[11px] font-semibold tracking-wide bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded border border-amber-500/30 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>Admin</span>
                 </span>
               </div>
               <p className="text-[11px] text-stone-400 hidden sm:block">
@@ -36,13 +45,15 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             </div>
           </div>
 
-          {/* Quick Actions */}
+          {/* Quick Actions & Admin Account */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Status indicator */}
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-300 text-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-medium">COD Store Live</span>
-            </div>
+            {/* Admin Email Pill */}
+            {user && (
+              <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-800 border border-stone-700 text-stone-300 text-xs">
+                <User className="w-3.5 h-3.5 text-amber-400" />
+                <span className="font-medium">{user.email}</span>
+              </div>
+            )}
 
             {/* Refresh button */}
             <button
@@ -64,6 +75,17 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             >
               <ExternalLink className="w-3.5 h-3.5" />
               <span>Visit Storefront</span>
+            </button>
+
+            {/* Logout button */}
+            <button
+              id="admin-logout-btn"
+              onClick={handleAdminLogout}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-300 hover:text-white text-xs font-medium border border-red-800/60 transition shadow-sm"
+              title="Sign Out of Administrator Portal"
+            >
+              <LogOut className="w-3.5 h-3.5 text-red-400" />
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>

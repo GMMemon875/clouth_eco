@@ -3,6 +3,7 @@ import { SettingsProvider } from './context/SettingsContext';
 import { ToastProvider } from './context/ToastContext';
 import { CartProvider } from './context/CartContext';
 import { WishlistProvider } from './context/WishlistContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 import { AnnouncementBar } from './components/common/AnnouncementBar';
 import { Header } from './components/common/Header';
@@ -19,6 +20,11 @@ import { CheckoutPage } from './pages/CheckoutPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
 import { TrackOrderPage } from './pages/TrackOrderPage';
 import { WishlistPage } from './pages/WishlistPage';
+import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { AccountPage } from './pages/AccountPage';
+import { AdminLoginPage } from './pages/AdminLoginPage';
+import { AdminResetPasswordPage } from './pages/AdminResetPasswordPage';
 import { FAQPage } from './pages/static/FAQPage';
 import { ReturnPolicyPage } from './pages/static/ReturnPolicyPage';
 import { ContactPage } from './pages/static/ContactPage';
@@ -26,7 +32,7 @@ import { AboutPage } from './pages/static/AboutPage';
 import { PrivacyPolicyPage, TermsPage } from './pages/static/PrivacyPolicyPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { fetchCategories } from './api';
-import { ICategory } from './types/store';
+import { AlertCircle } from 'lucide-react';
 
 const defaultCategories = [
   { slug: '3-piece-suits', name: '3-Piece Luxury Suits' },
@@ -38,6 +44,7 @@ const defaultCategories = [
 ];
 
 export function AppContent() {
+  const { user, isAuthenticated, isAdmin, loading: authLoading, logout } = useAuth();
   const [currentUrl, setCurrentUrl] = useState(() => window.location.pathname + window.location.search);
   const [categoriesList, setCategoriesList] = useState(defaultCategories);
 
@@ -72,8 +79,83 @@ export function AppContent() {
   const [path, search] = currentUrl.split('?');
   const queryParams = new URLSearchParams(search || '');
 
-  // Dedicated full-screen Dashboard layout ("alag se")
-  if (path === '/dashboard' || path === '/admin' || path.startsWith('/dashboard') || path.startsWith('/admin')) {
+  // ==========================================
+  // SECURE DEDICATED ADMIN ROUTE (/admin & /dashboard)
+  // ==========================================
+  if (
+    path === '/admin' ||
+    path === '/dashboard' ||
+    path.startsWith('/admin/') ||
+    path.startsWith('/dashboard/')
+  ) {
+    // Check if reset password request
+    if (path === '/admin/reset-password') {
+      return (
+        <AdminResetPasswordPage
+          token={queryParams.get('token') || ''}
+          onNavigateToLogin={() => navigate('/admin')}
+        />
+      );
+    }
+
+    // Loading session verification
+    if (authLoading) {
+      return (
+        <div className="min-h-screen bg-stone-900 flex items-center justify-center text-amber-400">
+          <div className="text-center space-y-2">
+            <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-stone-400">Verifying administrator authorization...</p>
+          </div>
+        </div>
+      );
+    }
+
+    // If logged in as customer (user role), strictly deny access to admin area!
+    if (isAuthenticated && !isAdmin) {
+      return (
+        <div className="min-h-screen bg-stone-900 flex items-center justify-center px-4 py-12 text-stone-100">
+          <div className="w-full max-w-md bg-stone-950 border border-stone-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
+            <div className="w-14 h-14 rounded-2xl bg-red-950/60 border border-red-800 text-red-400 mx-auto flex items-center justify-center">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h1 className="font-serif text-2xl font-bold text-white">403 Access Denied</h1>
+            <p className="text-xs text-stone-400 leading-relaxed">
+              You are currently signed in as customer (<strong>{user?.email}</strong>). Normal customer
+              accounts do not have administrator permissions to access this management console.
+            </p>
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                onClick={() => navigate('/')}
+                className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-xl text-xs transition"
+              >
+                Return to Public Storefront
+              </button>
+              <button
+                onClick={async () => {
+                  await logout();
+                  navigate('/admin');
+                }}
+                className="w-full py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-xl text-xs font-semibold transition"
+              >
+                Sign Out & Switch Account
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // If not authenticated: show Admin Login Screen
+    if (!isAuthenticated || !isAdmin) {
+      return (
+        <AdminLoginPage
+          onLoginSuccess={() => navigate('/admin')}
+          onNavigateHome={() => navigate('/')}
+        />
+      );
+    }
+
+    // Authorized Administrator: Render Dashboard
     return (
       <DashboardPage
         onNavigateStore={() => navigate('/')}
@@ -82,6 +164,9 @@ export function AppContent() {
     );
   }
 
+  // ==========================================
+  // PUBLIC STOREFRONT ROUTES
+  // ==========================================
   let pageContent: React.ReactNode = null;
 
   if (path === '/' || path === '') {
@@ -117,6 +202,22 @@ export function AppContent() {
     pageContent = <TrackOrderPage initialOrderNumber={orderNumber} onNavigate={navigate} />;
   } else if (path === '/wishlist') {
     pageContent = <WishlistPage onNavigate={navigate} />;
+  } else if (path === '/login') {
+    pageContent = (
+      <LoginPage
+        onNavigate={navigate}
+        redirectTo={queryParams.get('redirect') || '/account'}
+      />
+    );
+  } else if (path === '/register') {
+    pageContent = <RegisterPage onNavigate={navigate} />;
+  } else if (path === '/account') {
+    pageContent = (
+      <AccountPage
+        onNavigate={navigate}
+        initialTab={queryParams.get('tab') === 'orders' ? 'orders' : 'profile'}
+      />
+    );
   } else if (path === '/faq') {
     pageContent = <FAQPage />;
   } else if (path === '/return-policy') {
@@ -139,7 +240,7 @@ export function AppContent() {
       {/* Top Announcement Bar */}
       <AnnouncementBar />
 
-      {/* Main Navigation Header */}
+      {/* Main Navigation Header - completely without Admin/Dashboard link */}
       <Header
         currentPath={currentUrl}
         onNavigate={navigate}
@@ -147,9 +248,7 @@ export function AppContent() {
       />
 
       {/* Main Page Body */}
-      <main className="flex-1">
-        {pageContent}
-      </main>
+      <main className="flex-1">{pageContent}</main>
 
       {/* Slide-over Shopping Bag Drawer */}
       <CartDrawer onNavigate={navigate} />
@@ -157,10 +256,10 @@ export function AppContent() {
       {/* Floating Sticky WhatsApp Button */}
       <StickyWhatsAppButton />
 
-      {/* Mobile Sticky Navigation Dock */}
+      {/* Mobile Sticky Navigation Dock - completely without Admin/Dashboard link */}
       <MobileBottomNav currentPath={path} onNavigate={navigate} />
 
-      {/* Footer */}
+      {/* Footer - completely without Admin/Dashboard link */}
       <Footer onNavigate={navigate} />
     </div>
   );
@@ -168,14 +267,16 @@ export function AppContent() {
 
 export default function App() {
   return (
-    <SettingsProvider>
-      <ToastProvider>
-        <CartProvider>
-          <WishlistProvider>
-            <AppContent />
-          </WishlistProvider>
-        </CartProvider>
-      </ToastProvider>
-    </SettingsProvider>
+    <AuthProvider>
+      <SettingsProvider>
+        <ToastProvider>
+          <CartProvider>
+            <WishlistProvider>
+              <AppContent />
+            </WishlistProvider>
+          </CartProvider>
+        </ToastProvider>
+      </SettingsProvider>
+    </AuthProvider>
   );
 }

@@ -1,5 +1,10 @@
 import { Request, Response } from 'express';
-import { createOrder, trackOrder, getOrderByNumber } from '../services/orderService';
+import {
+  createOrder,
+  trackOrder,
+  getCustomerOrders,
+  getOrderDetailsForUser,
+} from '../services/orderService';
 
 export async function createOrderHandler(req: Request, res: Response) {
   try {
@@ -12,7 +17,15 @@ export async function createOrderHandler(req: Request, res: Response) {
       });
     }
 
-    const { order, orderNumber } = await createOrder({ shippingDetails, items });
+    const userId = req.user ? req.user.id || (req.user as any)._id?.toString() : null;
+    const userEmail = req.user ? req.user.email : (shippingDetails.email || null);
+
+    const { order, orderNumber } = await createOrder({
+      shippingDetails,
+      items,
+      userId,
+      userEmail,
+    });
 
     res.status(201).json({
       success: true,
@@ -27,6 +40,30 @@ export async function createOrderHandler(req: Request, res: Response) {
     res.status(isConflict ? 409 : 400).json({
       success: false,
       error: error.message || 'Failed to place order. Please try again.',
+    });
+  }
+}
+
+export async function getMyOrdersHandler(req: Request, res: Response) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please log in.',
+      });
+    }
+
+    const userId = req.user.id || (req.user as any)._id?.toString() || '';
+    const orders = await getCustomerOrders(userId, req.user.email, req.user.phone);
+
+    res.json({
+      success: true,
+      data: orders,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to retrieve your orders.',
     });
   }
 }
@@ -59,23 +96,27 @@ export async function trackOrderHandler(req: Request, res: Response) {
 export async function getOrderDetailsHandler(req: Request, res: Response) {
   try {
     const { orderNumber } = req.params;
-    const order = await getOrderByNumber(orderNumber);
 
-    if (!order) {
-      return res.status(404).json({
+    if (!req.user) {
+      return res.status(401).json({
         success: false,
-        error: 'Order not found.',
+        error: 'Authentication required to view order details. For guest orders, please use Track Order with Phone Number.',
       });
     }
+
+    const order = await getOrderDetailsForUser(orderNumber, req.user);
 
     res.json({
       success: true,
       data: order,
     });
   } catch (error: any) {
-    res.status(500).json({
+    const isForbidden = error.message && error.message.includes('Access denied');
+    const isNotFound = error.message && error.message.includes('not found');
+    res.status(isForbidden ? 403 : isNotFound ? 404 : 500).json({
       success: false,
       error: error.message || 'Failed to retrieve order details.',
     });
   }
 }
+

@@ -1,4 +1,5 @@
 import { IOrder, IProduct, IStoreSettings, OrderStatus } from '../types/store';
+import { getAuthHeaders } from './authApi';
 
 const API_BASE = '/api/admin';
 
@@ -26,18 +27,24 @@ export interface IAdminStats {
 export interface IAdminCustomer {
   id: string;
   fullName: string;
+  name?: string;
+  email?: string;
   phone: string;
   city: string;
   address: string;
   totalOrders: number;
   totalSpent: number;
-  lastOrderDate: string;
-  lastOrderNumber: string;
-  orders: Array<{ orderNumber: string; date: string; total: number; status: string }>;
+  lastOrderDate?: string;
+  lastOrderNumber?: string;
+  createdAt?: string;
+  orders?: Array<{ orderNumber: string; date: string; total: number; status: string }>;
 }
 
 export async function fetchAdminStats(): Promise<IAdminStats> {
-  const res = await fetch(`${API_BASE}/stats`);
+  const res = await fetch(`${API_BASE}/stats`, {
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  });
   const data = await res.json();
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to fetch admin stats');
@@ -55,7 +62,10 @@ export async function fetchAdminOrders(filters: {
   if (filters.search) params.append('search', filters.search);
   if (filters.limit) params.append('limit', String(filters.limit));
 
-  const res = await fetch(`${API_BASE}/orders?${params.toString()}`);
+  const res = await fetch(`${API_BASE}/orders?${params.toString()}`, {
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  });
   const data = await res.json();
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to fetch admin orders');
@@ -71,7 +81,8 @@ export async function updateAdminOrderStatus(
 ): Promise<IOrder> {
   const res = await fetch(`${API_BASE}/orders/${encodeURIComponent(orderNumber)}/status`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
+    credentials: 'include',
     body: JSON.stringify({ status, trackingCode, note }),
   });
   const data = await res.json();
@@ -86,7 +97,10 @@ export async function fetchAdminProducts(): Promise<Array<IProduct & {
   hasLowStock: boolean;
   isOutOfStock: boolean;
 }>> {
-  const res = await fetch(`${API_BASE}/products`);
+  const res = await fetch(`${API_BASE}/products`, {
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  });
   const data = await res.json();
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to fetch products');
@@ -97,7 +111,8 @@ export async function fetchAdminProducts(): Promise<Array<IProduct & {
 export async function createAdminProduct(productData: Partial<IProduct>): Promise<IProduct> {
   const res = await fetch(`${API_BASE}/products`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
+    credentials: 'include',
     body: JSON.stringify(productData),
   });
   const data = await res.json();
@@ -110,7 +125,8 @@ export async function createAdminProduct(productData: Partial<IProduct>): Promis
 export async function updateAdminProduct(id: string, updates: Partial<IProduct>): Promise<IProduct> {
   const res = await fetch(`${API_BASE}/products/${encodeURIComponent(id)}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
+    credentials: 'include',
     body: JSON.stringify(updates),
   });
   const data = await res.json();
@@ -127,7 +143,8 @@ export async function updateAdminVariantStock(
 ): Promise<{ success: boolean; newStock: number }> {
   const res = await fetch(`${API_BASE}/products/${encodeURIComponent(productId)}/stock`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
+    credentials: 'include',
     body: JSON.stringify({ variantSku, stock }),
   });
   const data = await res.json();
@@ -138,7 +155,10 @@ export async function updateAdminVariantStock(
 }
 
 export async function fetchAdminCustomers(): Promise<IAdminCustomer[]> {
-  const res = await fetch(`${API_BASE}/customers`);
+  const res = await fetch(`${API_BASE}/customers`, {
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  });
   const data = await res.json();
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to fetch customers');
@@ -147,7 +167,10 @@ export async function fetchAdminCustomers(): Promise<IAdminCustomer[]> {
 }
 
 export async function fetchAdminSettings(): Promise<IStoreSettings> {
-  const res = await fetch(`${API_BASE}/settings`);
+  const res = await fetch(`${API_BASE}/settings`, {
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  });
   const data = await res.json();
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to fetch settings');
@@ -158,7 +181,8 @@ export async function fetchAdminSettings(): Promise<IStoreSettings> {
 export async function updateAdminSettings(settings: Partial<IStoreSettings>): Promise<IStoreSettings> {
   const res = await fetch(`${API_BASE}/settings`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
+    credentials: 'include',
     body: JSON.stringify(settings),
   });
   const data = await res.json();

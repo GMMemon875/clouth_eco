@@ -11,8 +11,14 @@ import {
   getSettingsHandler,
   updateSettingsHandler,
 } from '../controllers/adminController';
+import { authenticateToken, requireAuth, requireAdmin } from '../middleware/auth';
 
 const router = Router();
+
+// Apply Authentication and Administrator Authorization to ALL admin routes
+router.use(authenticateToken);
+router.use(requireAuth);
+router.use(requireAdmin);
 
 // Analytics & KPI overview
 router.get('/stats', getStatsHandler);

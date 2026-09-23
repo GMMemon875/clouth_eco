@@ -1,44 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Search,
   Heart,
   ShoppingBag,
   Menu,
   X,
-  Compass,
-  Sparkles,
   Phone,
-  LayoutDashboard,
+  Compass,
+  User,
+  LogOut,
+  Package,
+  ChevronDown,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { useSettings } from '../../context/SettingsContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface HeaderProps {
   currentPath: string;
   onNavigate: (path: string) => void;
-  onSearchSubmit?: (term: string) => void;
+  onSearchSubmit: (term: string) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onSearchSubmit }) => {
+export const Header: React.FC<HeaderProps> = ({
+  currentPath,
+  onNavigate,
+  onSearchSubmit,
+}) => {
   const { totalCartItems, setIsCartDrawerOpen } = useCart();
   const { wishlistCount } = useWishlist();
   const { settings } = useSettings();
+  const { user, isAuthenticated, logout } = useAuth();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchTerm.trim()) {
-      if (onSearchSubmit) {
-        onSearchSubmit(searchTerm.trim());
-      } else {
-        onNavigate(`/shop?search=${encodeURIComponent(searchTerm.trim())}`);
-      }
+      onSearchSubmit(searchTerm.trim());
       setSearchOpen(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    setUserDropdownOpen(false);
+    onNavigate('/');
   };
 
   const navLinks = [
@@ -50,7 +73,6 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onSearc
     { label: 'Ready-to-Wear', path: '/shop?category=ready-to-wear' },
     { label: 'Unstitched', path: '/shop?category=unstitched' },
     { label: 'Track Order', path: '/track-order' },
-    { label: 'Dashboard', path: '/dashboard' },
   ];
 
   return (
@@ -111,7 +133,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onSearc
           </nav>
 
           {/* Action Icons Right */}
-          <div className="flex items-center gap-1 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-2">
             {/* Search Button */}
             <button
               id="search-toggle-btn"
@@ -137,16 +159,79 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onSearc
               <span>WhatsApp</span>
             </a>
 
-            {/* Dashboard Quick Access Button */}
-            <button
-              id="header-dashboard-btn"
-              onClick={() => onNavigate('/dashboard')}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-stone-900 bg-amber-100/70 hover:bg-amber-100 border border-amber-300 transition"
-              title="Open Store Management Dashboard"
-            >
-              <LayoutDashboard className="w-3.5 h-3.5 text-[#8b3a42]" />
-              <span>Dashboard</span>
-            </button>
+            {/* Customer Authentication & Account Navigation */}
+            {isAuthenticated && user ? (
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  id="user-account-menu-btn"
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-stone-800 bg-stone-100 hover:bg-stone-200 border border-stone-200 transition"
+                  aria-expanded={userDropdownOpen}
+                  aria-haspopup="true"
+                >
+                  <User className="w-3.5 h-3.5 text-[#8b3a42]" />
+                  <span className="max-w-[100px] truncate">{user.name.split(' ')[0]}</span>
+                  <ChevronDown className="w-3 h-3 text-stone-400" />
+                </button>
+
+                {userDropdownOpen && (
+                  <div
+                    id="user-account-dropdown"
+                    className="absolute right-0 mt-2 w-56 bg-white border border-stone-200 rounded-xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+                  >
+                    <div className="px-4 py-2 border-b border-stone-100">
+                      <p className="text-xs font-bold text-stone-900 truncate">{user.name}</p>
+                      <p className="text-[11px] text-stone-500 truncate">{user.email}</p>
+                    </div>
+
+                    <button
+                      id="menu-my-account"
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        onNavigate('/account');
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 hover:text-[#8b3a42] flex items-center gap-2 transition"
+                    >
+                      <User className="w-4 h-4 text-stone-400" />
+                      <span>My Profile & Address</span>
+                    </button>
+
+                    <button
+                      id="menu-my-orders"
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        onNavigate('/account?tab=orders');
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 hover:text-[#8b3a42] flex items-center gap-2 transition"
+                    >
+                      <Package className="w-4 h-4 text-stone-400" />
+                      <span>My Orders</span>
+                    </button>
+
+                    <div className="border-t border-stone-100 my-1"></div>
+
+                    <button
+                      id="menu-logout"
+                      onClick={handleLogout}
+                      className="w-full text-left px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 transition"
+                    >
+                      <LogOut className="w-4 h-4 text-red-500" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                id="header-login-btn"
+                onClick={() => onNavigate('/login')}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-stone-800 bg-stone-100 hover:bg-stone-200 border border-stone-200 transition"
+                title="Customer Sign In / Register"
+              >
+                <User className="w-3.5 h-3.5 text-stone-600" />
+                <span className="hidden sm:inline">Sign In</span>
+              </button>
+            )}
 
             {/* Wishlist */}
             <button
@@ -222,8 +307,64 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onSearc
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div id="mobile-nav-drawer" className="lg:hidden fixed inset-x-0 top-[113px] bg-white border-b border-stone-200 shadow-xl max-h-[80vh] overflow-y-auto z-50">
+        <div id="mobile-nav-drawer" className="lg:hidden fixed inset-x-0 top-[81px] bg-white border-b border-stone-200 shadow-xl max-h-[85vh] overflow-y-auto z-50">
           <div className="px-4 py-6 space-y-4">
+            {/* Account Quick Status on Mobile */}
+            <div className="p-3 bg-stone-50 rounded-xl border border-stone-200">
+              {isAuthenticated && user ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-stone-900">{user.name}</p>
+                      <p className="text-[11px] text-stone-500">{user.email}</p>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="text-xs text-red-600 font-semibold hover:underline"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-stone-200">
+                    <button
+                      onClick={() => {
+                        onNavigate('/account');
+                        setMobileMenuOpen(false);
+                      }}
+                      className="py-1.5 px-3 bg-white border border-stone-200 text-stone-800 rounded-lg text-xs font-semibold text-center"
+                    >
+                      My Profile
+                    </button>
+                    <button
+                      onClick={() => {
+                        onNavigate('/account?tab=orders');
+                        setMobileMenuOpen(false);
+                      }}
+                      className="py-1.5 px-3 bg-[#8b3a42] text-white rounded-lg text-xs font-semibold text-center"
+                    >
+                      My Orders
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-stone-900">Welcome to Noor & Co.</p>
+                    <p className="text-[11px] text-stone-500">Sign in to view orders & saved details</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      onNavigate('/login');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="px-3.5 py-1.5 bg-[#8b3a42] text-white rounded-lg text-xs font-semibold"
+                  >
+                    Sign In
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="text-xs font-semibold uppercase tracking-wider text-[#c5a880] px-3">
               Shop Collections
             </div>

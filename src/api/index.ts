@@ -6,6 +6,7 @@ import {
   IOrder,
   IOrderTrackingResult,
 } from '../types/store';
+import { getAuthHeaders } from './authApi';
 
 const API_BASE = '/api';
 
@@ -76,7 +77,8 @@ export async function submitCodOrder(payload: {
 }): Promise<{ orderNumber: string; order: IOrder }> {
   const res = await fetch(`${API_BASE}/orders`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
+    credentials: 'include',
     body: JSON.stringify(payload),
   });
 
@@ -102,7 +104,10 @@ export async function trackOrderApi(orderNumber: string, phone: string): Promise
 }
 
 export async function fetchOrderByNumber(orderNumber: string): Promise<IOrder> {
-  const res = await fetch(`${API_BASE}/orders/${orderNumber}`);
+  const res = await fetch(`${API_BASE}/orders/${orderNumber}`, {
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  });
   const data = await res.json();
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Order lookup failed');

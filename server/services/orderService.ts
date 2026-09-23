@@ -20,6 +20,8 @@ export interface ICreateOrderItemInput {
 export interface ICreateOrderInput {
   shippingDetails: IShippingDetails;
   items: ICreateOrderItemInput[];
+  userId?: string | null;
+  userEmail?: string | null;
 }
 
 export async function createOrder(input: ICreateOrderInput): Promise<{ order: IOrder; orderNumber: string }> {
@@ -175,6 +177,8 @@ export async function createOrder(input: ICreateOrderInput): Promise<{ order: IO
   const newOrder: IOrder = {
     orderNumber,
     customer: customerId,
+    userId: input.userId || null,
+    userEmail: input.userEmail ? input.userEmail.toLowerCase().trim() : null,
     shippingDetails: {
       fullName: shippingDetails.fullName.trim(),
       phone: normalizedPhone,
@@ -569,4 +573,77 @@ export async function getAdminCustomers(): Promise<any[]> {
 
   return Object.values(customerMap).sort((a, b) => b.totalSpent - a.totalSpent);
 }
+
+/**
+ * Fetch orders belonging exclusively to a specific authenticated customer
+ */
+export async function getCustomerOrders(
+  userId: string,
+  userEmail: string,
+  userPhone: string
+): Promise<IOrder[]> {
+  const cleanPhone = userPhone.replace(/[^\d+]/g, '').trim();
+  const normalizedEmail = userEmail.toLowerCase().trim();
+
+  if (isMongoConnected()) {
+    try {
+      const queryOr: any[] = [];
+      if (userId) queryOr.push({ userId });
+      if (normalizedEmail) queryOr.push({ userEmail: normalizedEmail });
+      if (cleanPhone) queryOr.push({ 'shippingDetails.phone': { $regex: cleanPhone } });
+
+      const orders = await OrderModel.find(queryOr.length > 0 ? { $or: queryOr } : { userId }).sort({
+        createdAt: -1,
+      });
+
+      return orders.map((o) => (o.toObject ? (o.toObject() as IOrder) : o));
+    } catch (err) {
+      console.error('[OrderService] Error fetching customer orders from Mongo:', err);
+    }
+  }
+
+  // In-Memory store lookup
+  return inMemoryOrders
+    .filter((o) => {
+      const orderPhone = o.shippingDetails?.phone?.replace(/[^\d+]/g, '').trim();
+      const matchUserId = Boolean(o.userId && o.userId === userId);
+      const matchEmail = Boolean(o.userEmail && o.userEmail.toLowerCase() === normalizedEmail);
+      const matchPhone = Boolean(orderPhone && cleanPhone && orderPhone.includes(cleanPhone));
+      return matchUserId || matchEmail || matchPhone;
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+/**
+ * Fetch single order with ownership validation (Admin or owner customer only)
+ */
+export async function getOrderDetailsForUser(
+  orderNumber: string,
+  user: { id?: string; _id?: string; email: string; phone: string; role: string }
+): Promise<IOrder> {
+  const order = await getOrderByNumber(orderNumber);
+  if (!order) {
+    throw new Error('Order not found.');
+  }
+
+  if (user.role === 'admin') {
+    return order;
+  }
+
+  const userId = user.id || user._id?.toString();
+  const cleanUserPhone = user.phone.replace(/[^\d+]/g, '').trim();
+  const cleanOrderPhone = order.shippingDetails?.phone?.replace(/[^\d+]/g, '').trim();
+
+  const isOwner =
+    (order.userId && order.userId.toString() === userId) ||
+    (order.userEmail && order.userEmail.toLowerCase() === user.email.toLowerCase()) ||
+    (cleanUserPhone && cleanOrderPhone && cleanUserPhone === cleanOrderPhone);
+
+  if (!isOwner) {
+    throw new Error('Access denied. You do not have permission to view this order.');
+  }
+
+  return order;
+}
+
 

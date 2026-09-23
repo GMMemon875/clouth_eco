@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Users, MessageSquare, Phone, MapPin, ShoppingBag } from 'lucide-react';
+import { Search, Users, MessageSquare, Phone, MapPin, Mail, Calendar } from 'lucide-react';
 import { IAdminCustomer } from '../../api/adminApi';
 
 interface AdminCustomersTabProps {
@@ -12,11 +12,18 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({ customers 
   const filtered = customers.filter((c) => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return true;
+    const name = (c.fullName || c.name || '').toLowerCase();
+    const email = (c.email || '').toLowerCase();
+    const phone = (c.phone || '').toLowerCase();
+    const city = (c.city || '').toLowerCase();
+    const address = (c.address || '').toLowerCase();
+
     return (
-      c.fullName.toLowerCase().includes(q) ||
-      c.phone.includes(q) ||
-      c.city.toLowerCase().includes(q) ||
-      c.address.toLowerCase().includes(q)
+      name.includes(q) ||
+      email.includes(q) ||
+      phone.includes(q) ||
+      city.includes(q) ||
+      address.includes(q)
     );
   });
 
@@ -29,7 +36,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({ customers 
             Customer Directory & Accounts
           </h1>
           <p className="text-xs text-stone-500">
-            Active buyers across Lahore, Karachi, Islamabad, Faisalabad and other cities
+            Registered customer accounts and verified storefront buyers across Pakistan
           </p>
         </div>
 
@@ -40,7 +47,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({ customers 
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by customer name, phone, city..."
+            placeholder="Search by name, email, phone, city..."
             className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-stone-300 bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#8b3a42]"
           />
         </div>
@@ -52,41 +59,49 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({ customers 
           <div className="p-12 text-center text-stone-500">
             <Users className="w-8 h-8 text-stone-300 mx-auto mb-2" />
             <p className="font-semibold text-stone-800 text-sm">No customers found</p>
-            <p className="text-xs mt-1">Customers automatically register when placing an order.</p>
+            <p className="text-xs mt-1">Customers register via the online store or upon placing COD orders.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-stone-50 text-stone-600 font-semibold border-b border-stone-200">
                 <tr>
-                  <th className="py-3 px-4">Customer</th>
-                  <th className="py-3 px-4">Contact Phone</th>
-                  <th className="py-3 px-4">Primary City & Address</th>
+                  <th className="py-3 px-4">Customer Name & Email</th>
+                  <th className="py-3 px-4">Phone Number</th>
+                  <th className="py-3 px-4">Delivery Address & City</th>
                   <th className="py-3 px-4 text-center">Orders Count</th>
-                  <th className="py-3 px-4">Total Spent (PKR)</th>
-                  <th className="py-3 px-4">Last Order</th>
+                  <th className="py-3 px-4">Total Spent</th>
+                  <th className="py-3 px-4">Account / Activity</th>
                   <th className="py-3 px-4 text-right">Quick Contact</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
                 {filtered.map((c) => {
-                  const cleanPhone = c.phone.replace(/[^\d]/g, '');
+                  const cleanPhone = (c.phone || '').replace(/[^\d]/g, '');
                   const waNumber = cleanPhone.startsWith('0') ? '92' + cleanPhone.slice(1) : cleanPhone;
+                  const customerName = c.fullName || c.name || 'Valued Customer';
                   const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(
-                    `Assalam-o-Alaikum ${c.fullName}, Noor & Co. greeting you from our store team.`
+                    `Assalam-o-Alaikum ${customerName}, Noor & Co. greeting you from our store team.`
                   )}`;
 
                   return (
                     <tr key={c.id} className="hover:bg-stone-50/70 transition">
-                      {/* Name & avatar */}
+                      {/* Name & email */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-[#8b3a42]/10 text-[#8b3a42] font-serif font-bold text-xs flex items-center justify-center">
-                            {c.fullName.charAt(0)}
+                          <div className="w-8 h-8 rounded-full bg-[#8b3a42]/10 text-[#8b3a42] font-serif font-bold text-xs flex items-center justify-center shrink-0">
+                            {customerName.charAt(0)}
                           </div>
-                          <div>
-                            <p className="font-semibold text-stone-900">{c.fullName}</p>
-                            <span className="text-[10px] text-stone-400">Verified Buyer</span>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-stone-900 truncate">{customerName}</p>
+                            {c.email ? (
+                              <p className="text-[11px] text-stone-500 truncate flex items-center gap-1">
+                                <Mail className="w-3 h-3 text-stone-400 shrink-0" />
+                                <span>{c.email}</span>
+                              </p>
+                            ) : (
+                              <span className="text-[10px] text-stone-400">Direct COD Buyer</span>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -98,9 +113,9 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({ customers 
 
                       {/* City & Address */}
                       <td className="py-3.5 px-4">
-                        <p className="font-medium text-stone-800">{c.city}</p>
-                        <p className="text-[10px] text-stone-500 truncate max-w-[180px]" title={c.address}>
-                          {c.address}
+                        <p className="font-medium text-stone-800">{c.city || 'Pakistan'}</p>
+                        <p className="text-[10px] text-stone-500 truncate max-w-[200px]" title={c.address}>
+                          {c.address || 'Standard Address'}
                         </p>
                       </td>
 
@@ -113,19 +128,32 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({ customers 
 
                       {/* Total Spent */}
                       <td className="py-3.5 px-4 font-bold text-stone-900">
-                        Rs. {c.totalSpent.toLocaleString()}
+                        Rs. {(c.totalSpent || 0).toLocaleString()}
                       </td>
 
-                      {/* Last Order */}
-                      <td className="py-3.5 px-4">
-                        <p className="font-mono text-stone-700">{c.lastOrderNumber}</p>
-                        <p className="text-[10px] text-stone-400">
-                          {new Date(c.lastOrderDate).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })}
-                        </p>
+                      {/* Registration / Activity */}
+                      <td className="py-3.5 px-4 text-stone-600">
+                        {c.lastOrderDate ? (
+                          <>
+                            <p className="font-mono text-[11px] text-stone-700">{c.lastOrderNumber}</p>
+                            <p className="text-[10px] text-stone-400">
+                              {new Date(c.lastOrderDate).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
+                            </p>
+                          </>
+                        ) : c.createdAt ? (
+                          <div className="flex items-center gap-1 text-[11px] text-stone-500">
+                            <Calendar className="w-3 h-3 text-stone-400" />
+                            <span>
+                              Joined {new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-stone-400">Active</span>
+                        )}
                       </td>
 
                       {/* Quick Contact */}

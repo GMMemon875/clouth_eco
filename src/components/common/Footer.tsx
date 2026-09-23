@@ -231,10 +231,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           <button onClick={() => onNavigate('/terms')} className="hover:text-stone-300 transition">
             Terms of Service
           </button>
-          <span>•</span>
-          <button onClick={() => onNavigate('/dashboard')} className="text-amber-400 hover:text-amber-300 font-semibold transition">
-            Store Manager Dashboard
-          </button>
         </div>
       </div>
     </footer>

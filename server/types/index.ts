@@ -140,8 +140,40 @@ export interface IOrder {
   statusHistory: IOrderStatusHistory[];
   source: OrderSource;
   trackingCode?: string | null;
+  userId?: string | null;
+  userEmail?: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+export type UserRole = 'user' | 'admin';
+
+export interface IUserAddress {
+  address: string;
+  city: string;
+  area?: string;
+  landmark?: string;
+}
+
+export interface IUser {
+  id?: string;
+  _id?: string;
+  name: string;
+  email: string;
+  phone: string;
+  password?: string;
+  address?: IUserAddress;
+  role: UserRole;
+  resetPasswordToken?: string | null;
+  resetPasswordExpires?: Date | null;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
+
+export interface IAuthJWTPayload {
+  userId: string;
+  email: string;
+  role: UserRole;
 }
 
 export interface IStoreSettings {
