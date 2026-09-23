@@ -1,44 +1,12 @@
-import express from 'express';
 import path from 'path';
-import cors from 'cors';
-import cookieParser from 'cookie-parser';
 import { createServer as createViteServer } from 'vite';
-import { connectDB } from './server/config/db';
-import { initializeCatalog } from './server/services/productService';
-import { initializeAdminAccount } from './server/services/authService';
-import productRoutes from './server/routes/productRoutes';
-import categoryRoutes from './server/routes/categoryRoutes';
-import orderRoutes from './server/routes/orderRoutes';
-import settingsRoutes from './server/routes/settingsRoutes';
-import adminRoutes from './server/routes/adminRoutes';
-import authRoutes from './server/routes/authRoutes';
+import { app, ensureBackendReady } from './server/app';
 
 async function startServer() {
-  const app = express();
   const PORT = 3000;
 
-  // Middlewares
-  app.use(cors());
-  app.use(cookieParser());
-  app.use(express.json({ limit: '2mb' }));
-  app.use(express.urlencoded({ extended: true }));
-
-  // Initialize DB and Seed Data
-  await connectDB();
-  await initializeCatalog();
-  await initializeAdminAccount();
-
-  // API Routes (Mounted FIRST)
-  app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', time: new Date().toISOString() });
-  });
-
-  app.use('/api/auth', authRoutes);
-  app.use('/api/products', productRoutes);
-  app.use('/api/categories', categoryRoutes);
-  app.use('/api/orders', orderRoutes);
-  app.use('/api/settings', settingsRoutes);
-  app.use('/api/admin', adminRoutes);
+  // Initialize DB and catalog
+  await ensureBackendReady();
 
   // Vite middleware for development vs static build in production
   if (process.env.NODE_ENV !== 'production') {
@@ -49,7 +17,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(expressStaticMiddleware(distPath));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
@@ -58,6 +26,11 @@ async function startServer() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Server] Pakistani Clothing Storefront active on http://0.0.0.0:${PORT}`);
   });
+}
+
+function expressStaticMiddleware(distPath: string) {
+  const express = require('express');
+  return express.static(distPath);
 }
 
 startServer().catch((err) => {

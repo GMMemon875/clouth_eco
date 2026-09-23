@@ -1,7 +1,8 @@
 import { IOrder, IProduct, IStoreSettings, OrderStatus } from '../types/store';
 import { getAuthHeaders } from './authApi';
 
-const API_BASE = '/api/admin';
+const BACKEND_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API_BASE = `${BACKEND_BASE}/api/admin`;
 
 export interface IAdminStats {
   totalRevenue: number;

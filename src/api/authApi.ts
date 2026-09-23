@@ -1,7 +1,8 @@
 import { IUser, IRegisterData } from '../types/auth';
 import { IOrder } from '../types/store';
 
-const API_BASE = '/api/auth';
+const BACKEND_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API_BASE = `${BACKEND_BASE}/api/auth`;
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('noor_auth_token');

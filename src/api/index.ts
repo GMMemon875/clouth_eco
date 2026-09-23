@@ -8,7 +8,8 @@ import {
 } from '../types/store';
 import { getAuthHeaders } from './authApi';
 
-const API_BASE = '/api';
+const BACKEND_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API_BASE = `${BACKEND_BASE}/api`;
 
 export async function fetchProducts(params: Record<string, any> = {}): Promise<{
   products: IProduct[];

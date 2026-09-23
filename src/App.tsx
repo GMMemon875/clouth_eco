@@ -88,6 +88,13 @@ export function AppContent() {
     path.startsWith('/admin/') ||
     path.startsWith('/dashboard/')
   ) {
+    // Canonicalize /dashboard to /admin in the browser address bar
+    if (path === '/dashboard' || path.startsWith('/dashboard/')) {
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard')) {
+        window.history.replaceState({}, '', '/admin' + (search ? `?${search}` : ''));
+      }
+    }
+
     // Check if reset password request
     if (path === '/admin/reset-password') {
       return (
