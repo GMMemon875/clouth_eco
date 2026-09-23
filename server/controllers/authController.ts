@@ -15,9 +15,23 @@ const COOKIE_OPTIONS = {
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
+function parseBody(req: Request): any {
+  if (!req.body) return {};
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+  return req.body;
+}
+
 export async function registerCustomerHandler(req: Request, res: Response) {
+  res.setHeader('Content-Type', 'application/json');
   try {
-    const { name, email, phone, password, confirmPassword, address, city, area, landmark } = req.body;
+    const body = parseBody(req);
+    const { name, email, phone, password, confirmPassword, address, city, area, landmark } = body;
     const { user, token } = await registerCustomer({
       name,
       email,
@@ -46,8 +60,10 @@ export async function registerCustomerHandler(req: Request, res: Response) {
 }
 
 export async function loginCustomerHandler(req: Request, res: Response) {
+  res.setHeader('Content-Type', 'application/json');
   try {
-    const { email, password } = req.body;
+    const body = parseBody(req);
+    const { email, password } = body;
     const { user, token } = await loginUser(email, password);
 
     res.cookie('token', token, COOKIE_OPTIONS);
@@ -66,8 +82,10 @@ export async function loginCustomerHandler(req: Request, res: Response) {
 }
 
 export async function loginAdminHandler(req: Request, res: Response) {
+  res.setHeader('Content-Type', 'application/json');
   try {
-    const { email, password } = req.body;
+    const body = parseBody(req);
+    const { email, password } = body;
     const { user, token } = await loginUser(email, password, 'admin');
 
     res.cookie('token', token, COOKIE_OPTIONS);
@@ -86,6 +104,7 @@ export async function loginAdminHandler(req: Request, res: Response) {
 }
 
 export async function logoutHandler(_req: Request, res: Response) {
+  res.setHeader('Content-Type', 'application/json');
   res.clearCookie('token');
   res.json({
     success: true,
@@ -94,6 +113,7 @@ export async function logoutHandler(_req: Request, res: Response) {
 }
 
 export async function getProfileHandler(req: Request, res: Response) {
+  res.setHeader('Content-Type', 'application/json');
   if (!req.user) {
     return res.status(401).json({
       success: false,
@@ -108,6 +128,7 @@ export async function getProfileHandler(req: Request, res: Response) {
 }
 
 export async function updateProfileHandler(req: Request, res: Response) {
+  res.setHeader('Content-Type', 'application/json');
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -117,7 +138,8 @@ export async function updateProfileHandler(req: Request, res: Response) {
     }
 
     const userId = req.user.id || (req.user as any)._id?.toString();
-    const updated = await updateUserProfile(userId, req.body);
+    const body = parseBody(req);
+    const updated = await updateUserProfile(userId, body);
 
     res.json({
       success: true,
@@ -133,6 +155,7 @@ export async function updateProfileHandler(req: Request, res: Response) {
 }
 
 export async function changePasswordHandler(req: Request, res: Response) {
+  res.setHeader('Content-Type', 'application/json');
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -141,7 +164,8 @@ export async function changePasswordHandler(req: Request, res: Response) {
       });
     }
 
-    const { currentPassword, newPassword, confirmPassword } = req.body;
+    const body = parseBody(req);
+    const { currentPassword, newPassword, confirmPassword } = body;
     const userId = req.user.id || (req.user as any)._id?.toString();
 
     await changeUserPassword(userId, currentPassword, newPassword, confirmPassword);
@@ -159,8 +183,18 @@ export async function changePasswordHandler(req: Request, res: Response) {
 }
 
 export async function forgotPasswordHandler(req: Request, res: Response) {
+  res.setHeader('Content-Type', 'application/json');
   try {
-    const { email } = req.body;
+    const body = parseBody(req);
+    const email = body.email;
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'A valid email address is required.',
+      });
+    }
+
     const result = await requestPasswordReset(email);
 
     res.json({
@@ -168,6 +202,7 @@ export async function forgotPasswordHandler(req: Request, res: Response) {
       message: result.message,
     });
   } catch (error: any) {
+    console.error('[forgotPasswordHandler error]:', error);
     res.status(400).json({
       success: false,
       error: error.message || 'Failed to process password reset request.',
@@ -176,8 +211,18 @@ export async function forgotPasswordHandler(req: Request, res: Response) {
 }
 
 export async function resetPasswordHandler(req: Request, res: Response) {
+  res.setHeader('Content-Type', 'application/json');
   try {
-    const { token, newPassword, confirmPassword } = req.body;
+    const body = parseBody(req);
+    const { token, newPassword, confirmPassword } = body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Reset token is required.',
+      });
+    }
+
     await resetPasswordWithToken(token, newPassword, confirmPassword);
 
     res.json({
@@ -185,6 +230,7 @@ export async function resetPasswordHandler(req: Request, res: Response) {
       message: 'Password has been reset successfully. You may now log in with your new password.',
     });
   } catch (error: any) {
+    console.error('[resetPasswordHandler error]:', error);
     res.status(400).json({
       success: false,
       error: error.message || 'Failed to reset password.',

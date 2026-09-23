@@ -27,6 +27,33 @@ export function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
+/**
+ * Safely parse JSON response from server.
+ * If server returns HTML or plain text (e.g. 500 FUNCTION_INVOCATION_FAILED from Vercel),
+ * safely parse and return a clean error message rather than throwing "Unexpected token <".
+ */
+async function parseJsonResponse(res: Response): Promise<any> {
+  const text = await res.text();
+  let json: any = null;
+
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch (_e) {
+    if (!res.ok) {
+      // Clean HTML tags or serverless error messages
+      const clean = text
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 160);
+      throw new Error(clean || `Server error (${res.status}: ${res.statusText || 'Unknown'})`);
+    }
+    throw new Error('Received unexpected non-JSON response from server.');
+  }
+
+  return json;
+}
+
 export async function registerCustomerApi(data: IRegisterData): Promise<{ user: IUser; token: string }> {
   const res = await fetch(`${API_BASE}/register`, {
     method: 'POST',
@@ -35,7 +62,7 @@ export async function registerCustomerApi(data: IRegisterData): Promise<{ user: 
     body: JSON.stringify(data),
   });
 
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   if (!res.ok || !json.success) {
     throw new Error(json.error || 'Registration failed');
   }
@@ -52,7 +79,7 @@ export async function loginCustomerApi(email: string, password: string): Promise
     body: JSON.stringify({ email, password }),
   });
 
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   if (!res.ok || !json.success) {
     throw new Error(json.error || 'Invalid credentials');
   }
@@ -69,7 +96,7 @@ export async function loginAdminApi(email: string, password: string): Promise<{ 
     body: JSON.stringify({ email, password }),
   });
 
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   if (!res.ok || !json.success) {
     throw new Error(json.error || 'Administrator authentication failed');
   }
@@ -102,7 +129,7 @@ export async function fetchCurrentProfile(): Promise<IUser | null> {
       credentials: 'include',
     });
 
-    const json = await res.json();
+    const json = await parseJsonResponse(res);
     if (!res.ok || !json.success) {
       setAuthToken(null);
       return null;
@@ -129,7 +156,7 @@ export async function updateProfileApi(updates: {
     body: JSON.stringify(updates),
   });
 
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   if (!res.ok || !json.success) {
     throw new Error(json.error || 'Failed to update profile');
   }
@@ -149,7 +176,7 @@ export async function changePasswordApi(
     body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
   });
 
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   if (!res.ok || !json.success) {
     throw new Error(json.error || 'Failed to change password');
   }
@@ -162,7 +189,7 @@ export async function requestPasswordResetApi(email: string): Promise<string> {
     body: JSON.stringify({ email }),
   });
 
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   if (!res.ok || !json.success) {
     throw new Error(json.error || 'Password reset request failed');
   }
@@ -177,7 +204,7 @@ export async function resetPasswordApi(token: string, newPassword: string, confi
     body: JSON.stringify({ token, newPassword, confirmPassword }),
   });
 
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   if (!res.ok || !json.success) {
     throw new Error(json.error || 'Password reset failed');
   }
@@ -186,12 +213,12 @@ export async function resetPasswordApi(token: string, newPassword: string, confi
 }
 
 export async function fetchMyOrdersApi(): Promise<IOrder[]> {
-  const res = await fetch('/api/orders/my-orders', {
+  const res = await fetch(`${BACKEND_BASE}/api/orders/my-orders`, {
     headers: getAuthHeaders(),
     credentials: 'include',
   });
 
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   if (!res.ok || !json.success) {
     throw new Error(json.error || 'Failed to load your orders');
   }

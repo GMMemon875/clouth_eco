@@ -41,12 +41,31 @@ export interface IAdminCustomer {
   orders?: Array<{ orderNumber: string; date: string; total: number; status: string }>;
 }
 
+async function parseJsonResponse(res: Response): Promise<any> {
+  const text = await res.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch (_e) {
+    if (!res.ok) {
+      const clean = text
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 160);
+      throw new Error(clean || `Server error (${res.status})`);
+    }
+    throw new Error('Received unexpected non-JSON response from server.');
+  }
+  return json;
+}
+
 export async function fetchAdminStats(): Promise<IAdminStats> {
   const res = await fetch(`${API_BASE}/stats`, {
     headers: getAuthHeaders(),
     credentials: 'include',
   });
-  const data = await res.json();
+  const data = await parseJsonResponse(res);
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to fetch admin stats');
   }
@@ -67,7 +86,7 @@ export async function fetchAdminOrders(filters: {
     headers: getAuthHeaders(),
     credentials: 'include',
   });
-  const data = await res.json();
+  const data = await parseJsonResponse(res);
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to fetch admin orders');
   }
@@ -75,36 +94,41 @@ export async function fetchAdminOrders(filters: {
 }
 
 export async function updateAdminOrderStatus(
-  orderNumber: string,
+  orderId: string,
   status: OrderStatus,
-  trackingCode?: string,
-  note?: string
+  trackingNumber?: string,
+  courierNotes?: string
 ): Promise<IOrder> {
-  const res = await fetch(`${API_BASE}/orders/${encodeURIComponent(orderNumber)}/status`, {
-    method: 'PUT',
+  const res = await fetch(`${API_BASE}/orders/${encodeURIComponent(orderId)}/status`, {
+    method: 'PATCH',
     headers: getAuthHeaders(),
     credentials: 'include',
-    body: JSON.stringify({ status, trackingCode, note }),
+    body: JSON.stringify({ status, trackingNumber, courierNotes }),
   });
-  const data = await res.json();
+  const data = await parseJsonResponse(res);
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to update order status');
   }
   return data.data;
 }
 
-export async function fetchAdminProducts(): Promise<Array<IProduct & {
-  totalStock: number;
-  hasLowStock: boolean;
-  isOutOfStock: boolean;
-}>> {
-  const res = await fetch(`${API_BASE}/products`, {
+export async function fetchAdminProducts(params: Record<string, any> = {}): Promise<{
+  products: IProduct[];
+  total: number;
+  totalPages: number;
+}> {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') query.append(k, String(v));
+  });
+
+  const res = await fetch(`${API_BASE}/products?${query.toString()}`, {
     headers: getAuthHeaders(),
     credentials: 'include',
   });
-  const data = await res.json();
+  const data = await parseJsonResponse(res);
   if (!res.ok || !data.success) {
-    throw new Error(data.error || 'Failed to fetch products');
+    throw new Error(data.error || 'Failed to fetch admin products');
   }
   return data.data;
 }
@@ -116,7 +140,7 @@ export async function createAdminProduct(productData: Partial<IProduct>): Promis
     credentials: 'include',
     body: JSON.stringify(productData),
   });
-  const data = await res.json();
+  const data = await parseJsonResponse(res);
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to create product');
   }
@@ -130,7 +154,7 @@ export async function updateAdminProduct(id: string, updates: Partial<IProduct>)
     credentials: 'include',
     body: JSON.stringify(updates),
   });
-  const data = await res.json();
+  const data = await parseJsonResponse(res);
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to update product');
   }
@@ -148,7 +172,7 @@ export async function updateAdminVariantStock(
     credentials: 'include',
     body: JSON.stringify({ variantSku, stock }),
   });
-  const data = await res.json();
+  const data = await parseJsonResponse(res);
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to update variant stock');
   }
@@ -160,7 +184,7 @@ export async function fetchAdminCustomers(): Promise<IAdminCustomer[]> {
     headers: getAuthHeaders(),
     credentials: 'include',
   });
-  const data = await res.json();
+  const data = await parseJsonResponse(res);
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to fetch customers');
   }
@@ -172,7 +196,7 @@ export async function fetchAdminSettings(): Promise<IStoreSettings> {
     headers: getAuthHeaders(),
     credentials: 'include',
   });
-  const data = await res.json();
+  const data = await parseJsonResponse(res);
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to fetch settings');
   }
@@ -186,7 +210,7 @@ export async function updateAdminSettings(settings: Partial<IStoreSettings>): Pr
     credentials: 'include',
     body: JSON.stringify(settings),
   });
-  const data = await res.json();
+  const data = await parseJsonResponse(res);
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Failed to save settings');
   }

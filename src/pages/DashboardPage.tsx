@@ -73,7 +73,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
       setStats(statsData);
       setOrders(ordersData);
-      setProducts(productsData);
+      const prodsList = Array.isArray(productsData) ? productsData : (productsData?.products || []);
+      setProducts(prodsList as any);
       setCustomers(customersData);
       setSettings(settingsData);
     } catch (err: any) {
